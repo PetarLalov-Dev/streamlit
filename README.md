@@ -36,8 +36,10 @@ Run the Streamlit app:
 
 ```bash
 streamlit run app.py
+```
 
 ## ChatGPT
+
 https://chatgpt.com/share/66fefec6-6a6c-800f-958c-fda1e2439f70 
 
 

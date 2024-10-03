@@ -13,7 +13,7 @@ This Streamlit application plots two time series on the same chart with dual Y-a
 1. **Clone the repository:**
 
     ```bash
-    https://github.com/dukov777/streamlit.git
+    git clone https://github.com/dukov777/streamlit.git
     cd streamlit
     ```
 

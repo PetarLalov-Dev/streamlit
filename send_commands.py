@@ -103,6 +103,7 @@ with button_col:
         if random_command.strip():
             # Replace each newline with \r\n
             command_with_crlf = random_command.replace("\n", "\r\n")
+            command_with_crlf = command_with_crlf + "\r\n\r\n"
             cmd_dict = {"name": random_command[:15] + ("…" if len(random_command) > 15 else ""), "command": command_with_crlf.encode('utf-8')}
             send_command(cmd_dict)
 

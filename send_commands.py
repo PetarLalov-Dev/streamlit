@@ -4,6 +4,9 @@ import time
 import argparse
 import streamlit as st
 import textwrap
+import pandas as pd
+
+from streamlit.runtime.state import session_state
 
 # Initialize cache and index in session_state
 if 'command_history' not in st.session_state:
@@ -96,7 +99,6 @@ def send_predefined_command(message):
         print(f"Connected to {args.host}:{args.port}")
 
         # Convert the message to bytes and send it
-        print(f"Sending: {message}")
         sock.sendall(message)
 
         print("Message(s) sent successfully")
@@ -113,62 +115,52 @@ def send_predefined_command(message):
         sock.close()
 
 def send_command(command):
-    """
-    Send the given command dict via the socket tunnel.
-    """
-    # Log in UI and console
-    st.info(f"Sending: {command['name']}")
-    print(command['name'])
     # Route through the predefined command sender
     send_predefined_command(command['command'])
 
-# --- Custom Command Cache Implementation ---
-# Helper to update history index and rerun
-def update_input_from_history(offset):
-    history = st.session_state['command_history']
-    idx = st.session_state['history_index'] + offset
-    if 0 <= idx < len(history):
-        st.session_state['history_index'] = idx
-        st.experimental_rerun()
+def on_HistoryUpdate():
+    if st.session_state['command_history']:
+        # Build dataframe of history
+        print(f"History: {st.session_state['command_history']}")
+        
+# display a table with st.session_state['command_history']
+# add a button to each row
 
-# Determine value for text_area based on history index
-if st.session_state['history_index'] >= 0 and st.session_state['history_index'] < len(st.session_state['command_history']):
-    random_command_value = st.session_state['command_history'][st.session_state['history_index']]
-else:
-    random_command_value = ""
 
-# Input field and send button for random multiline command with Prev/Next
-input_col, button_col, prev_col, next_col = st.columns([4, 1, 0.7, 0.7])
-def on_command_input_change():
-    # Reset history index when editing
-    st.session_state['history_index'] = -1
+df = pd.DataFrame(st.session_state['command_history'])
+clicked = st.dataframe(df, use_container_width=True, on_select='rerun', selection_mode="single-row")
+if clicked:
+    print(clicked)
+    row = clicked["selection"]["rows"]
+    if row:
+        print(row[0])
+        command = st.session_state['command_history'][row[0]]
+        send_command(command)
+    
 
-with input_col:
-    random_command = st.text_area(
-        "Enter random command",
-        height=80,
-        key="random_command_input",
-        value=random_command_value,
-        on_change=on_command_input_change
-    )
-with button_col:
-    if st.button("Send", type="primary", key="send_random_command"):
-        if random_command.strip():
-            # Add to cache if not duplicate of last
-            if not st.session_state['command_history'] or st.session_state['command_history'][-1] != random_command:
-                st.session_state['command_history'].append(random_command)
-            st.session_state['history_index'] = -1  # Reset index after send
-            # Replace each newline with \r\n
-            command_with_crlf = random_command.replace("\n", "\r\n")
-            command_with_crlf = command_with_crlf + "\r\n\r\n"
-            cmd_dict = {"name": random_command[:15] + ("…" if len(random_command) > 15 else ""), "command": command_with_crlf.encode('utf-8')}
-            send_command(cmd_dict)
-with prev_col:
-    if st.button("Prev", key="prev_command"):
-        update_input_from_history(-1)
-with next_col:
-    if st.button("Next", key="next_command"):
-        update_input_from_history(1)
+def HistoryUpdate(cmd_dict):
+    if cmd_dict not in st.session_state['command_history']:
+        st.session_state['command_history'].append(cmd_dict)
+        print(f"Added to history: {st.session_state['command_history']}")
+
+
+
+# multiline input field
+random_command = st.text_area(
+    "Enter random command",
+    height=80,
+    key="random_command_input"
+)
+
+def ButtonSend(cmd_dict):
+    print(f"Button clicked: {cmd_dict}")
+    cmd_dict = cmd_dict + "\r\n\r\n"
+    cmd_dict = {"name": cmd_dict, "command": cmd_dict.encode('utf-8')}    
+    HistoryUpdate(cmd_dict)
+
+    send_command(cmd_dict)
+
+st.button("Send", type="primary", on_click=ButtonSend, args=(random_command,))
 
 # Arrange predefined buttons in two columns
 cols = st.columns(2)

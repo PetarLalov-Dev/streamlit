@@ -3,6 +3,13 @@ import sys
 import time
 import argparse
 import streamlit as st
+import textwrap
+
+# Initialize cache and index in session_state
+if 'command_history' not in st.session_state:
+    st.session_state['command_history'] = []
+if 'history_index' not in st.session_state:
+    st.session_state['history_index'] = -1  # -1 means new input
 
 commands = [
     {"name": "Restart", "command": b"#restart\r\n\r\n"},
@@ -27,39 +34,55 @@ commands = [
     {"name": "", "command": b'#BYPASSEXT,520,EMPTY,1,0,0,0,0,0,0,0,0,8,0,0,0,0,0,0,0,STATUS\r\n\r\n'},
     {"name": "", "command": b'#RCARMED,1,ALL\r\n\r\n'},
     {"name": "", "command": b'#DEVICECHECK\r\n\r\n'},
-    
 ]
 
-def main(message):
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="Socket client to send data to the serial port tunnel"
-    )
-    parser.add_argument(
-        "-H",
-        "--host",
-        type=str,
-        default="127.0.0.1",
-        help="Server host (default: 127.0.0.1)",
-    )
-    parser.add_argument(
-        "-p", "--port", type=int, default=8888, help="Server port (default: 8888)"
-    )
-    parser.add_argument(
-        "-r",
-        "--repeat",
-        type=int,
-        default=1,
-        help="Number of times to send the message (default: 1)",
-    )
-    parser.add_argument(
-        "-d",
-        "--delay",
-        type=float,
-        default=1.0,
-        help="Delay between repeated messages in seconds (default: 1.0)",
-    )
-    args = parser.parse_args()
+# --- Preprocess commands for display ---
+commands_display = []
+for idx, cmd in enumerate(commands):
+    # Determine raw name
+    if cmd.get("name"):
+        raw = cmd['name']
+    else:
+        raw = cmd['command'].decode('utf-8').strip()
+    # Truncate with word-boundary
+    display = textwrap.shorten(raw, width=15, placeholder="…")
+    commands_display.append({
+        'display': display,
+        'command': cmd['command'],
+        'key': f"predef_{idx}"
+    })
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(
+    description="Socket client to send data to the serial port tunnel"
+)
+parser.add_argument(
+    "-H",
+    "--host",
+    type=str,
+    default="127.0.0.1",
+    help="Server host (default: 127.0.0.1)",
+)
+parser.add_argument(
+    "-p", "--port", type=int, default=8888, help="Server port (default: 8888)"
+)
+parser.add_argument(
+    "-r",
+    "--repeat",
+    type=int,
+    default=1,
+    help="Number of times to send the message (default: 1)",
+)
+parser.add_argument(
+    "-d",
+    "--delay",
+    type=float,
+    default=1.0,
+    help="Delay between repeated messages in seconds (default: 1.0)",
+)
+args = parser.parse_args()
+
+def send_predefined_command(message):
 
     # Create a TCP/IP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,19 +113,16 @@ def main(message):
         sock.close()
 
 def send_command(command):
-    #use command_name to find the command in the commands list and send it to the serial port tunnel
-    print (command['name'])
-    main(command['command'])
-    
+    """
+    Send the given command dict via the socket tunnel.
+    """
+    # Log in UI and console
+    st.info(f"Sending: {command['name']}")
+    print(command['name'])
+    # Route through the predefined command sender
+    send_predefined_command(command['command'])
+
 # --- Custom Command Cache Implementation ---
-import streamlit as st
-
-# Initialize cache and index in session_state
-if 'command_history' not in st.session_state:
-    st.session_state['command_history'] = []
-if 'history_index' not in st.session_state:
-    st.session_state['history_index'] = -1  # -1 means new input
-
 # Helper to update history index and rerun
 def update_input_from_history(offset):
     history = st.session_state['command_history']
@@ -150,21 +170,9 @@ with next_col:
     if st.button("Next", key="next_command"):
         update_input_from_history(1)
 
-# Arrange buttons in two columns
+# Arrange predefined buttons in two columns
 cols = st.columns(2)
-for idx, command in enumerate(commands):
+for idx, cmd in enumerate(commands_display):
     col = cols[idx % 2]
-    if command["name"] == "":
-        name = command['command']
-        # remove trailing \r\n, \r, \n from name
-        name = name.decode('utf-8').replace("\r\n", "").replace("\r", "").replace("\n", "")
-        display_name = name[:15] + ("…" if len(name) > 15 else "")
-        col.button(display_name, type="primary", on_click=send_command, args=(command,))
-    else:
-        display_name = command['name'][:15] + ("…" if len(command['name']) > 15 else "")
-        col.button(display_name, type="primary", on_click=send_command, args=(command,))
-
-
-
-
-
+    col.button(cmd['display'], type="primary", on_click=send_command,
+               args=({'name': cmd['display'], 'command': cmd['command']},), key=cmd['key'])
